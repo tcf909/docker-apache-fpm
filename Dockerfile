@@ -7,7 +7,7 @@ ENV APACHE_ENVVARS $APACHE_CONFDIR/envvars
 RUN apt-get update && \
     apt-get install --no-install-recommends -y \
         apache2 && \
-    a2enmod proxy proxy_fcgi rewrite && \
+    a2enmod fastcgi alias rewrite && \
     rm -rf /var/lib/apt/lists/*
 
 RUN set -ex \
@@ -40,32 +40,26 @@ RUN set -ex \
 	&& ln -sfT /dev/stdout "$APACHE_LOG_DIR/other_vhosts_access.log"
 
 RUN { \
-        echo '<Proxy "fcgi://127.0.0.1:9000/">'; \
-        echo '  ProxySet connectiontimeout=5 timeout=60'; \
-        echo '</Proxy>'; \
-        echo '<FilesMatch "\.php$">'; \
-        echo ' <If "-f %{REQUEST_FILENAME}">'; \
-        echo '     SetHandler "proxy:fcgi://127.0.0.1:9000"'; \
-        echo ' </If>'; \
-        echo '</FilesMatch>'; \
+        echo '<IfModule mod_fastcgi.c>'; \
+        echo '  AddHandler php7-fcgi .php'; \
+        echo '  Action php7-fcgi /php7-fcgi'; \
+        echo '  Alias /php7-fcgi /usr/lib/cgi-bin/php7-fcgi'; \
+        echo '  FastCgiExternalServer /usr/lib/cgi-bin/php7-fcgi -host 127.0.0.1:9000 -pass-header Authorization'; \
+        echo '</IfModule>'; \
 		echo; \
-		echo 'DirectoryIndex disabled'; \
-		echo 'DirectoryIndex index.php index.html'; \
-		echo; \
-		echo '<Directory /var/www/>'; \
-		echo '  Options -Indexes'; \
-		echo '  AllowOverride All'; \
+		echo '<Directory /usr/lib/cgi-bin>'; \
+		echo '  Require all granted'; \
 		echo '</Directory>'; \
 	} | tee "$APACHE_CONFDIR/conf-available/php-fpm.conf" \
 	&& a2enconf php-fpm
 
-RUN { \
-        echo 'RewriteEngine On'; \
-        echo 'RewriteCond %{REQUEST_FILENAME} !-d'; \
-        echo 'RewriteCond %{REQUEST_FILENAME} !-f'; \
-        echo 'RewriteRule ^ index.php [L]'; \
-	} | tee "$APACHE_CONFDIR/conf-available/missing-file-redirect.conf" \
-	&& a2enconf missing-file-redirect
+#RUN { \
+#        echo 'RewriteEngine On'; \
+#        echo 'RewriteCond %{REQUEST_FILENAME} !-d'; \
+#        echo 'RewriteCond %{REQUEST_FILENAME} !-f'; \
+#        echo 'RewriteRule ^ index.php [L]'; \
+#	} | tee "$APACHE_CONFDIR/conf-available/missing-file-redirect.conf" \
+#	&& a2enconf missing-file-redirect
 
 RUN { \
         echo 'Protocols h2c http/1.1'; \
