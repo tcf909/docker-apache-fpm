@@ -59,6 +59,19 @@ RUN { \
 	} | tee "$APACHE_CONFDIR/conf-available/php-fpm.conf" \
 	&& a2enconf php-fpm
 
+RUN { \
+        echo 'RewriteEngine On'; \
+        echo 'RewriteCond %{REQUEST_FILENAME} !-d'; \
+        echo 'RewriteCond %{REQUEST_FILENAME} !-f'; \
+        echo 'RewriteRule ^ index.php [L]'; \
+	} | tee "$APACHE_CONFDIR/conf-available/missing-file-redirect.conf" \
+	&& a2enconf missing-file-redirect
+
+RUN { \
+        echo 'Protocols h2c http/1.1'; \
+	} | tee "$APACHE_CONFDIR/conf-available/http1_1.conf" \
+	&& a2enconf http1_1
+
 WORKDIR /var/www/html
 
 COPY inc/entrypoint inc/run_apache /usr/local/bin/
