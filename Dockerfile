@@ -66,6 +66,8 @@ RUN { \
 #	} | tee "$APACHE_CONFDIR/conf-available/http1_1.conf" \
 #	&& a2enconf http1_1
 
+VOLUME /var/www/html
+
 WORKDIR /var/www/html
 
 COPY inc/docker-entrypoint.sh inc/run_apache.sh /usr/local/bin/
