@@ -31,7 +31,6 @@ RUN set -ex \
 		&& chown -R "$APACHE_RUN_USER:$APACHE_RUN_GROUP" "$dir"; \
 	done
 
-
 # logs should go to stdout / stderr
 RUN set -ex \
 	&& . "$APACHE_ENVVARS" \
@@ -69,14 +68,14 @@ RUN { \
 
 WORKDIR /var/www/html
 
-COPY inc/entrypoint inc/run_apache /usr/local/bin/
+COPY inc/docker-entrypoint.sh inc/run_apache.sh /usr/local/bin/
 
 COPY inc/000-default.conf /etc/apache2/sites-available
 
-RUN chmod +x /usr/local/bin/entrypoint /usr/local/bin/run_apache
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh /usr/local/bin/run_apache.sh
 
 EXPOSE 80 443
 
-ENTRYPOINT ["entrypoint"]
+ENTRYPOINT ["docker-entrypoint.sh"]
 
-CMD ["run_apache"]
+CMD ["run_apache.sh"]
