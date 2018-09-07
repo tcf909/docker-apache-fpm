@@ -58,6 +58,11 @@ RUN set -ex; \
 #	} | tee "$APACHE_CONFDIR/conf-available/http1_1.conf" \
 #	&& a2enconf http1_1
 
+COPY rootfs/usr/local/bin/docker-php* /usr/local/bin/
+
+ENV PHP_CFLAGS="-fstack-protector-strong -fpic -fpie -O2"
+ENV PHP_CPPFLAGS="$PHP_CFLAGS"
+ENV PHP_LDFLAGS="-Wl,-O1 -Wl,--hash-style=both -pie"
 
 #PHP
 # persistent / runtime deps
@@ -82,7 +87,13 @@ RUN set -ex; \
         re2c \
 		ca-certificates \
 		curl \
-		xz-utils; \
+		xz-utils \
+		libfreetype6-dev \
+        libicu-dev \
+        libjpeg-dev \
+        libmcrypt-dev \
+        libpng12-dev \
+        libpq-dev; \
     apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
     apt-get clean; \
     rm -rf /var/lib/apt/lists/* /tmp/*;
@@ -98,8 +109,10 @@ RUN set -eux; \
 		libsqlite3-dev \
 		libssl-dev \
 		libxml2-dev \
-		zlib1g-dev; \
-#argon2
+		zlib1g-dev \
+		libbz2-dev \
+		libmysqlclient-dev; \
+#argon2 for ubuntu xenialcd
     sed -e "s/$(lsb_release -cs)/cosmic/g" /etc/apt/sources.list > /etc/apt/sources.list.d/cosmic.list; \
     { \
         echo 'Package: *'; \
@@ -121,7 +134,7 @@ RUN set -eux; \
 	cd /usr/src; \
 	wget -O php.tar.xz "$PHP_URL"; \
     echo "$PHP_SHA256 *php.tar.xz" | sha256sum -c -; \
-    tar -Jxf /usr/src/php.tar.xz -C /usr/src/php --strip-components=1; \
+    docker-php-source extract; \
 	cd /usr/src/php; \
 	\
 	# Apply stack smash protection to functions using local buffers and alloca()
@@ -130,10 +143,10 @@ RUN set -eux; \
     # Enable linker optimization (this sorts the hash buckets to improve cache locality, and is non-default)
     # Adds GNU HASH segments to generated executables (this is used if present, and is much faster than sysv hash; in this configuration, sysv hash is also generated)
     # https://github.com/docker-library/php/issues/272
-    export \
-        CFLAGS="-fstack-protector-strong -fpic -fpie -O2" \
-        CPPFLAGS="-fstack-protector-strong -fpic -fpie -O2" \
-        LDFLAGS="-Wl,-O1 -Wl,--hash-style=both -pie"; \
+   export \
+   		CFLAGS="$PHP_CFLAGS" \
+   		CPPFLAGS="$PHP_CPPFLAGS" \
+   		LDFLAGS="$PHP_LDFLAGS"; \
     \
 	gnuArch="$(dpkg-architecture --query DEB_BUILD_GNU_TYPE)"; \
 	debMultiarch="$(dpkg-architecture --query DEB_BUILD_MULTIARCH)"; \
@@ -141,6 +154,7 @@ RUN set -eux; \
 	if [ ! -d /usr/include/curl ]; then \
 		ln -sT "/usr/include/$debMultiarch/curl" /usr/local/include/curl; \
 	fi; \
+	mkdir -p "${PHP_INI_DIR}/conf.d"; \
 	./configure \
 		--build="$gnuArch" \
 		--sysconfdir="${PHP_INI_DIR}" \
@@ -174,10 +188,15 @@ RUN set -eux; \
 		--disable-cgi; \
 	make -j "$(nproc)"; \
 	make install; \
+#Additional modules
+	docker-php-ext-configure gd --with-freetype-dir=/usr/include/ --with-jpeg-dir=/usr/include/ --with-png-dir=/usr; \
+    docker-php-ext-install gd opcache bz2 calendar iconv intl mbstring mysqli pdo_mysql pdo_pgsql pgsql zip; \
+    pecl install mcrypt-1.0.1; \
+    docker-php-ext-enable mcrypt; \
 	find /usr/local/bin /usr/local/sbin -type f -executable -exec strip --strip-all '{}' + || true; \
 	make clean; \
 	cd /; \
-	rm -rf /usr/src/php*; \
+	docker-php-source delete \
 #CLEAN UP
 # reset apt-mark's "manual" list so that "purge --auto-remove" will remove all build dependencies
 	apt-mark auto '.*' > /dev/null; \
@@ -203,26 +222,6 @@ RUN set -eux; \
     cd "${PHP_INI_DIR}"; \
     sed "s!=NONE!=!g" php-fpm.conf.default | tee php-fpm.conf > /dev/null; \
     rm php-fpm.conf.default; \
-    mv php-fpm.d/www.conf.default php-fpm.d/www.conf; \
-    { \
-        echo '[global]'; \
-        echo 'error_log = /proc/self/fd/2'; \
-        echo; \
-        echo '[www]'; \
-        echo '; if we send this to /proc/self/fd/1, it never appears'; \
-        echo 'access.log = /proc/self/fd/2'; \
-        echo; \
-        echo 'clear_env = no'; \
-        echo; \
-        echo '; Ensure worker stdout and stderr are sent to the main error log.'; \
-        echo 'catch_workers_output = yes'; \
-    } | tee php-fpm.d/docker.conf; \
-    { \
-        echo '[global]'; \
-        echo 'daemonize = no'; \
-        echo; \
-        echo '[www]'; \
-        echo 'listen = /var/run/php-fpm.sock'; \
-    } | tee php-fpm.d/zz-docker.conf
+    rm php-fpm.d/www.conf.default;
 
 COPY rootfs/ /
