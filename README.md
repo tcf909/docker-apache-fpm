@@ -18,4 +18,4 @@ sites using this image. We currently run a farm of Nginx servers as reverse prox
 Most of the Dockerfile build code was brought over from the official PHP and Apache projects and customized to suit
 our needs. 
 
-Feel free to open up an issue or contact me directly with any questions ([tcf909@gmail.com](tcf909@gmail.com)).
+Feel free to open up an [issue](https://github.com/tcf909/docker-apache-fpm/issues) any questions or issues.
