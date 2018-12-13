@@ -1,4 +1,4 @@
-#Apache+PHP(FPM)
+#Apache+PHP(FPM) - Fast w/ Efficient Memory Consumption
 A simple apache+php container that has the following features / modifications:
 + PHP runs in FPM mode and is accessed by Apache via local unix socket (fast)
 + PHP uses ondemand scaling mode to keep the memory footprint low for mostly idle sites (helps container density)
